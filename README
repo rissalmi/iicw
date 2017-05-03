@@ -1,0 +1,6 @@
+./coursework.py [-ev] host port
+
+The options are as follows:
+
+-e	Enable ENC support.
+-v	Verbose mode.
