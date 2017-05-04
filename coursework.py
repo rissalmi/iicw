@@ -27,10 +27,13 @@ def encrypt(src):
 		    okeyv[okeyindex]))
 	for a, b in zip(src, okeyv[okeyindex]):
 		dst += chr(ord(a) ^ ord(b))
+		if debug >= 2:
+			print("encrypt: {} XOR {} -> {}".format(hex(ord(a)),
+			    hex(ord(b)), hex(ord(dst[-1]))))
 	okeyindex += 1
 	if debug:
-		print("encrypt: encrypted string: {}".format(" ".
-		    join(hex(ord(n)) for n in dst)))
+		print("encrypt: encrypted string: {}"
+		    .format(" ".join(hex(ord(n)) for n in dst)))
 	return dst
 
 def decrypt(src):
@@ -45,9 +48,13 @@ def decrypt(src):
 	keyindex += 1
 	if debug:
 		print("decrypt: decrypted string: {}".format(dst))
+		print("decrypt: decrypted string: {}".format(" "
+		    .join(hex(ord(n)) for n in dst)))
 	return dst
 
-# TODO: This function is only for testing the ENC feature
+# TODO: This function is only for testing the ENC feature.
+# Decrypts the encrypt()'ed string with the same key as encrypt() used, which
+# obviously results in the string that was given to encrypt() to encrypt.
 def decrypto(src):
 	global debug, okeyindex, okeyv
 
@@ -56,6 +63,8 @@ def decrypto(src):
 		dst += chr(ord(a) ^ ord(b))
 	if debug:
 		print("decrypto: decrypted string: {}".format(dst))
+		print("decrypto: decrypted string: {}".format(" "
+		    .join(hex(ord(n)) for n in dst)))
 	return dst
 
 def initconn(host, port):

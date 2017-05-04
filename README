@@ -3,4 +3,4 @@
 The options are as follows:
 
 -e	Enable ENC support.
--v	Verbose mode.
+-v	Verbose mode.  Multiple -v options increase the verbosity.
