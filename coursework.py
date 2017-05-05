@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.4
 import getopt
 import random
 import socket
@@ -111,9 +111,9 @@ def run(s):
 			print("run: reversed content: {}".format(content))
 		if enc:
 			content = encrypt(content)
-			if debug:
-				print("run: decrypto returned: {}"
-				    .format(decrypto(content)))
+			#if debug:
+			#	print("run: decrypto returned: {}"
+			#	    .format(decrypto(content)))
 		omsg = udp_pack(content, length, 1)
 		try:
 			s.send(omsg)
@@ -193,6 +193,8 @@ def tcp_negotiate(s):
 
 def udp_hello(s):
 	buf = "Hello from " + id
+	if enc:
+		buf = encrypt(buf)
 	data = udp_pack(buf, len(buf), 1)
 	try:
 		s.send(data)
