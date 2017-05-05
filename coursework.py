@@ -36,15 +36,15 @@ def encrypt(src):
 		    .format(" ".join(hex(ord(n)) for n in dst)))
 	return dst
 
-def decrypt(src):
+def decrypt(src, length):
 	global debug, keyindex, keyv
 
 	dst = ""
 	if debug:
 		print("decrypt: using keyv[{}] ({})".format(keyindex,
 		    keyv[keyindex]))
-	for a, b in zip(src, keyv[keyindex]):
-		dst += chr(ord(a) ^ ord(b))
+	for i in range(0, length):
+		dst += chr(ord(src[i]) ^ ord(keyv[keyindex][i]))
 	keyindex += 1
 	if debug:
 		print("decrypt: decrypted string: {}".format(dst))
@@ -100,9 +100,17 @@ def run(s):
 		if eom == 1:
 			print(content.decode())
 			return
-		content = content.decode().rstrip('\0\r\n')
+		content = content.decode()
+		if not enc:
+			content.rstrip('\0\r\n')
 		if enc:
-			content = decrypt(content)
+			if debug:
+				print("run: content before decryption: {}"
+				    .format(" ".join(hex(ord(n)) for n in content)))
+				for c in content:
+					if ord(c) == 0:
+						print("run: contains zero")
+			content = decrypt(content, length)
 			if debug:
 				print("run: decrypted content: {}"
 				    .format(content))
