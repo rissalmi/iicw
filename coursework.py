@@ -101,8 +101,6 @@ def run(s):
 			print(content.decode())
 			return
 		content = content.decode()
-		if not enc:
-			content = content.rstrip('\0\r\n')
 		if enc:
 			if debug:
 				print("run: content before decryption: {}"
@@ -114,6 +112,8 @@ def run(s):
 			if debug:
 				print("run: decrypted content: {}"
 				    .format(content))
+		else:
+			content = content.rstrip('\0\r\n')
 		content = " ".join(content.split()[::-1])
 		if debug:
 			print("run: reversed content: {}".format(content))
