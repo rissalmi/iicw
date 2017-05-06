@@ -102,7 +102,7 @@ def run(s):
 			return
 		content = content.decode()
 		if not enc:
-			content.rstrip('\0\r\n')
+			content = content.rstrip('\0\r\n')
 		if enc:
 			if debug:
 				print("run: content before decryption: {}"
