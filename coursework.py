@@ -113,7 +113,7 @@ def run(s):
 				print("run: decrypted content: {}"
 				    .format(content))
 		else:
-			content = content.rstrip('\0\r\n')
+			content = content.rstrip('\0')
 		content = " ".join(content.split()[::-1])
 		if debug:
 			print("run: reversed content: {}".format(content))
