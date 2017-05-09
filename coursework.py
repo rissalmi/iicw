@@ -12,6 +12,7 @@ STRUCTFMT = '!8s??HH64s'
 
 debug = 0
 enc = 0
+par = 0
 id = ""
 okeyv = []
 keyv = []
@@ -87,6 +88,34 @@ def key_generate():
 		dst += chr(n + 48)
 	return str(dst)
 
+def parity_add(src):
+	dst = ""
+	for c in src:
+		a = ord(c)
+		a <<= 1
+		a += parity_get(a)
+		dst += chr(a)
+	return dst
+
+def parity_get(n):
+	while n > 1:
+		n = (n >> 1) ^ (n & 1)
+	return n
+
+def parity_ok(src):
+	dst = ""
+	for c in src:
+		if isinstance(c, int):
+			a = c
+		else:
+			a = ord(c)
+		prt_bit = a & 1
+		a >>= 1
+		dst += chr(a)
+		if prt_bit != parity_get(a):
+			return False, dst
+	return True, dst
+
 def run(s):
 	global debug
 
@@ -100,9 +129,15 @@ def run(s):
 		if eom == 1:
 			print(content.decode())
 			return
-		content = content.decode()
-		if not enc:
-			content.rstrip('\0\r\n')
+		if not par:
+			content = content.decode()
+		if par:
+			state, dst = parity_ok(content)
+			if state:
+				content = dst
+			else:
+				print("parity not ok")
+				s.send(udp_pack("Send again", 10, 0))
 		if enc:
 			if debug:
 				print("run: content before decryption: {}"
@@ -114,6 +149,8 @@ def run(s):
 			if debug:
 				print("run: decrypted content: {}"
 				    .format(content))
+		else:
+			content = content.rstrip('\0\r\n')
 		content = " ".join(content.split()[::-1])
 		if debug:
 			print("run: reversed content: {}".format(content))
@@ -122,6 +159,9 @@ def run(s):
 			#if debug:
 			#	print("run: decrypto returned: {}"
 			#	    .format(decrypto(content)))
+		if par:
+			content = parity_add(content)
+			print(content, len(content))
 		omsg = udp_pack(content, length, 1)
 		try:
 			s.send(omsg)
@@ -182,6 +222,8 @@ def tcp_negotiate(s):
 	buf = "HELLO"
 	if enc:
 		buf += " ENC"
+	if par:
+		buf += " PAR"
 	buf += "\r\n"
 	if enc:
 		for i in range(0, KEYC):
@@ -203,6 +245,8 @@ def udp_hello(s):
 	buf = "Hello from " + id
 	if enc:
 		buf = encrypt(buf)
+	if par:
+		buf = parity_add(buf)
 	data = udp_pack(buf, len(buf), 1)
 	try:
 		s.send(data)
@@ -212,7 +256,6 @@ def udp_hello(s):
 
 def udp_pack(buf, length, ack):
 	global STRUCTFMT
-
 	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, 0, length,
 	    buf.encode())
 	return data
@@ -225,15 +268,15 @@ def udp_unpack(data):
 def usage():
 	global argv0
 
-	print("usage: {} [-ev] host port".format(argv0))
+	print("usage: {} [-evp] host port".format(argv0))
 	sys.exit(1)
 
 def main():
-	global argv0, debug, enc
+	global argv0, debug, enc, par
 
 	argv0 = sys.argv[0]
 	try:
-		options, argv = getopt.getopt(sys.argv[1:], "ev")
+		options, argv = getopt.getopt(sys.argv[1:], "evp")
 	except getopt.GetoptError:
 		usage()
 	for option in options:
@@ -241,6 +284,8 @@ def main():
 			print("main: option: {}".format(option))
 		if option[0] == '-e':
 			enc = 1
+		if option[0] == '-p':
+			par = 1
 		elif option[0] == '-v':
 			debug += 1
 	try:
