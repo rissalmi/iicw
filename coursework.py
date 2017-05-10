@@ -33,8 +33,7 @@ def encrypt(src):
 			    hex(ord(b)), hex(ord(dst[-1]))))
 	okeyindex += 1
 	if debug:
-		print("encrypt: encrypted string: {}"
-		    .format(" ".join(hex(ord(n)) for n in dst)))
+		print("encrypt: encrypted string: {}".format(repr_hex(dst)))
 	return dst
 
 def decrypt(src, length):
@@ -49,8 +48,7 @@ def decrypt(src, length):
 	keyindex += 1
 	if debug:
 		print("decrypt: decrypted string: {}".format(dst))
-		print("decrypt: decrypted string: {}".format(" "
-		    .join(hex(ord(n)) for n in dst)))
+		print("decrypt: decrypted string: {}".format(repr_hex(dst)))
 	return dst
 
 # TODO: This function is only for testing the ENC feature.
@@ -64,8 +62,7 @@ def decrypto(src):
 		dst += chr(ord(a) ^ ord(b))
 	if debug:
 		print("decrypto: decrypted string: {}".format(dst))
-		print("decrypto: decrypted string: {}".format(" "
-		    .join(hex(ord(n)) for n in dst)))
+		print("decrypto: decrypted string: {}".format(repr_hex(dst)))
 	return dst
 
 def initconn(host, port):
@@ -88,6 +85,12 @@ def key_generate():
 		dst += chr(n + 48)
 	return str(dst)
 
+def pieces(msg, length=64):
+	return [ msg[i:i+length] for i in range(0, len(msg), length) ]
+
+def repr_hex(p):
+	return " ".join(hex(ord(n)) for n in p)
+
 def run(s):
 	global debug
 
@@ -107,10 +110,7 @@ def run(s):
 			if enc:
 				if debug:
 					print("run: tmp before decryption: {}"
-					    .format(" ".join(hex(ord(n)) for n in tmp)))
-					for c in tmp:
-						if ord(c) == 0:
-							print("run: contains zero")
+					    .format(repr_hex(tmp)))
 				tmp = decrypt(tmp, length)
 				if debug:
 					print("run: decrypted tmp: {}"
@@ -143,9 +143,6 @@ def run(s):
 			except:
 				print("send")
 				sys.exit(1)
-
-def pieces(msg, length=64):
-	return [ msg[i:i+length] for i in range(0, len(msg), length) ]
 
 def server_parse(s):
 	global debug
