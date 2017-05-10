@@ -12,6 +12,7 @@ STRUCTFMT = '!8s??HH64s'
 
 debug = 0
 enc = 0
+mul = 0
 id = ""
 okeyv = []
 keyv = []
@@ -91,43 +92,62 @@ def run(s):
 	global debug
 
 	while True:
-		try:
-			data = s.recv(RCVLEN)
-			cid, ack, eom, rem, length, content = udp_unpack(data)
-		except:
-			print("recv")
-			sys.exit(1)
-		if eom == 1:
-			print(content.decode())
-			return
-		content = content.decode()
-		if enc:
-			if debug:
-				print("run: content before decryption: {}"
-				    .format(" ".join(hex(ord(n)) for n in content)))
-				for c in content:
-					if ord(c) == 0:
-						print("run: contains zero")
-			content = decrypt(content, length)
-			if debug:
-				print("run: decrypted content: {}"
-				    .format(content))
-		else:
-			content = content.rstrip('\0')
+		content = ""
+		while True:
+			try:
+				data = s.recv(RCVLEN)
+				cid, ack, eom, rem, length, tmp = udp_unpack(data)
+			except OSError as e:
+				print("recv: {}".format(str(e)))
+				sys.exit(1)
+			tmp = tmp.decode()
+			if eom == 1:
+				print(tmp)
+				return
+			if enc:
+				if debug:
+					print("run: tmp before decryption: {}"
+					    .format(" ".join(hex(ord(n)) for n in tmp)))
+					for c in tmp:
+						if ord(c) == 0:
+							print("run: contains zero")
+				tmp = decrypt(tmp, length)
+				if debug:
+					print("run: decrypted tmp: {}"
+					    .format(tmp))
+			else:
+				tmp = tmp.rstrip('\0')
+			content += tmp
+			if rem == 0:
+				break
+		#content = content.decode()
+		if debug:
+			print("run: content: {}".format(content))
 		content = " ".join(content.split()[::-1])
 		if debug:
 			print("run: reversed content: {}".format(content))
-		if enc:
-			content = encrypt(content)
+		#if enc:
+		#	content = encrypt(content)
 			#if debug:
 			#	print("run: decrypto returned: {}"
 			#	    .format(decrypto(content)))
-		omsg = udp_pack(content, length, 1)
-		try:
-			s.send(omsg)
-		except:
-			print("send")
-			sys.exit(1)
+		rem = len(content)
+		for piece in pieces(content):
+			length = len(piece)
+			rem -= length
+			if enc:
+				piece = encrypt(piece)
+			omsg = udp_pack(piece, length, rem=rem)
+			try:
+				s.send(omsg)
+			except:
+				print("send")
+				sys.exit(1)
+
+def pieces(msg, length=64):
+	n = len(msg)
+	res = [ msg[i:i+length] for i in range(0, n, length) ]
+	return res
 
 def server_parse(s):
 	global debug
@@ -182,6 +202,8 @@ def tcp_negotiate(s):
 	buf = "HELLO"
 	if enc:
 		buf += " ENC"
+	if mul:
+		buf += " MUL"
 	buf += "\r\n"
 	if enc:
 		for i in range(0, KEYC):
@@ -203,17 +225,17 @@ def udp_hello(s):
 	buf = "Hello from " + id
 	if enc:
 		buf = encrypt(buf)
-	data = udp_pack(buf, len(buf), 1)
+	data = udp_pack(buf, len(buf))
 	try:
 		s.send(data)
 	except:
 		print("send")
 		sys.exit(1)
 
-def udp_pack(buf, length, ack):
+def udp_pack(buf, length, ack=1, rem=0):
 	global STRUCTFMT
 
-	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, 0, length,
+	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length,
 	    buf.encode())
 	return data
 
@@ -229,11 +251,11 @@ def usage():
 	sys.exit(1)
 
 def main():
-	global argv0, debug, enc
+	global argv0, debug, enc, mul
 
 	argv0 = sys.argv[0]
 	try:
-		options, argv = getopt.getopt(sys.argv[1:], "ev")
+		options, argv = getopt.getopt(sys.argv[1:], "emv")
 	except getopt.GetoptError:
 		usage()
 	for option in options:
@@ -241,6 +263,8 @@ def main():
 			print("main: option: {}".format(option))
 		if option[0] == '-e':
 			enc = 1
+		elif option[0] == '-m':
+			mul = 1
 		elif option[0] == '-v':
 			debug += 1
 	try:
