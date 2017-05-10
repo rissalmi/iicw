@@ -145,9 +145,7 @@ def run(s):
 				sys.exit(1)
 
 def pieces(msg, length=64):
-	n = len(msg)
-	res = [ msg[i:i+length] for i in range(0, n, length) ]
-	return res
+	return [ msg[i:i+length] for i in range(0, len(msg), length) ]
 
 def server_parse(s):
 	global debug
