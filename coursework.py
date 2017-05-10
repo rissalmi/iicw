@@ -20,7 +20,7 @@ okeyindex = 0
 keyindex = 0
 
 def encrypt(src):
-	global debug, okeyindex, okeyv
+	global okeyindex
 
 	dst = ""
 	if debug:
@@ -37,7 +37,7 @@ def encrypt(src):
 	return dst
 
 def decrypt(src, length):
-	global debug, keyindex, keyv
+	global keyindex
 
 	dst = ""
 	if debug:
@@ -55,8 +55,6 @@ def decrypt(src, length):
 # Decrypts the encrypt()'ed string with the same key as encrypt() used, which
 # obviously results in the string that was given to encrypt() to encrypt.
 def decrypto(src):
-	global debug, okeyindex, okeyv
-
 	dst = ""
 	for a, b in zip(src, okeyv[okeyindex - 1]):
 		dst += chr(ord(a) ^ ord(b))
@@ -76,8 +74,6 @@ def initconn(host, port):
 	return s
 
 def key_generate():
-	global KEYLEN
-
 	dst = ""
 	for i in range(0, KEYLEN):
 		n = random.choice([random.randint(0, 9), random.randint(17, 22),
@@ -92,8 +88,6 @@ def repr_hex(p):
 	return " ".join(hex(ord(n)) for n in p)
 
 def run(s):
-	global debug
-
 	while True:
 		content = ""
 		while True:
@@ -145,8 +139,6 @@ def run(s):
 				sys.exit(1)
 
 def server_parse(s):
-	global debug
-
 	try:
 		buf = s.recv(RCVLEN).decode()
 	except:
@@ -228,20 +220,14 @@ def udp_hello(s):
 		sys.exit(1)
 
 def udp_pack(buf, length, ack=1, rem=0):
-	global STRUCTFMT
-
 	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length,
 	    buf.encode())
 	return data
 
 def udp_unpack(data):
-	global STRUCTFMT
-
 	return struct.unpack(STRUCTFMT, data)
 
 def usage():
-	global argv0
-
 	print("usage: {} [-ev] host port".format(argv0))
 	sys.exit(1)
 
