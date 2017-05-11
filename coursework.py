@@ -89,12 +89,14 @@ def key_generate():
 	return str(dst)
 
 def parity_add(src):
-	dst = ""
+	dst = b''
+	print("type(src): {}".format(type(src)))
 	for c in src:
-		a = ord(c)
-		a <<= 1
-		a += parity_get(a)
-		dst += chr(a)
+		#a = c
+		print("type(c): {}".format(type(c)))
+		c <<= 1
+		c += parity_get(c)
+		dst += bytes([c])
 	return dst
 
 def parity_get(n):
@@ -109,15 +111,19 @@ def parity_ok(src):
 			a = c
 		else:
 			a = ord(c)
+		if debug:
+			print("parity_ok: {}".format(hex(a)), end="")
 		prt_bit = a & 1
 		a >>= 1
 		dst += chr(a)
+		if debug:
+			print(" -> {} ({})".format(hex(a), chr(a)))
 		if prt_bit != parity_get(a):
 			return False, dst
 	return True, dst
 
 def run(s):
-	global debug
+	global debug, keyindex, okeyindex
 
 	while True:
 		try:
@@ -129,15 +135,25 @@ def run(s):
 		if eom == 1:
 			print(content.decode())
 			return
+		print("run: type(content) after recv: {}".format(type(content)))
 		if not par:
 			content = content.decode()
 		if par:
+			print("run: type(content) before parity_ok: {}".format(type(content)))
 			state, dst = parity_ok(content)
+			print("run: type(content) after parity_ok: {}".format(type(content)))
+			print("run: type(dst) after parity_ok: {}".format(type(dst)))
 			if state:
+				print("parity ok")
 				content = dst
 			else:
 				print("parity not ok")
-				s.send(udp_pack("Send again", 10, 0))
+				s.send(udp_pack("Send again".encode(), 10, 0))
+				keyindex += 1
+				okeyindex += 1
+				continue
+		if debug:
+			print("run: content after parity_ok: {}".format(" ".join(hex(ord(n)) for n in content)))
 		if enc:
 			if debug:
 				print("run: content before decryption: {}"
@@ -151,17 +167,26 @@ def run(s):
 				    .format(content))
 		else:
 			content = content.rstrip('\0\r\n')
+		print("run: content before reversing: {}".format(content))
 		content = " ".join(content.split()[::-1])
 		if debug:
 			print("run: reversed content: {}".format(content))
+			print("run: reversed content as hex: {}".format(" ".join(hex(ord(n)) for n in content)))
 		if enc:
+			print("run: type(content) before encrypt: {}".format(type(content)))
 			content = encrypt(content)
+			print("run: type(content) after encrypt: {}".format(type(content)))
 			#if debug:
 			#	print("run: decrypto returned: {}"
 			#	    .format(decrypto(content)))
+		content = content.encode()
 		if par:
+			print("run: type(content) before parity_add: {}".format(type(content)))
 			content = parity_add(content)
+			#print("run: type(content) after parity_add: {}".format(type(content)))
 			print(content, len(content))
+			#print("run: content after parity_add: {}".format(" ".join(hex(ord(n)) for n in content)))
+			print(type(content))
 		omsg = udp_pack(content, length, 1)
 		try:
 			s.send(omsg)
@@ -245,6 +270,7 @@ def udp_hello(s):
 	buf = "Hello from " + id
 	if enc:
 		buf = encrypt(buf)
+	buf = buf.encode()
 	if par:
 		buf = parity_add(buf)
 	data = udp_pack(buf, len(buf), 1)
@@ -256,8 +282,10 @@ def udp_hello(s):
 
 def udp_pack(buf, length, ack):
 	global STRUCTFMT
+	print("udp_pack: type(buf) before struct.pack: {}".format(type(buf)))
+	print("udp_pack: buf: {}".format(buf))
 	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, 0, length,
-	    buf.encode())
+	    buf)
 	return data
 
 def udp_unpack(data):
