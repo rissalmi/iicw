@@ -10,9 +10,6 @@ KEYLEN = 64
 RCVLEN = 8192
 STRUCTFMT = '!8s??HH64s'
 
-enc = 0
-mul = 0
-par = 0
 id = ""
 okeyv = []
 keyv = []
@@ -102,22 +99,16 @@ def run(s):
 			if eom == 1:
 				print(tmp.decode())
 				return
-			if not par:
-				tmp = tmp.decode()
-			if par:
-				state, dst = parity_ok(tmp)
-				if state:
-					tmp = dst
-				else:
-					if rem == 0:
-						s.send(udp_pack("Send again".encode(), 10, ack=0))
-						okeyindex += 1
-					keyindex += 1
-					continue
-			if enc:
-				tmp = decrypt(tmp, length)
+			state, dst = parity_ok(tmp)
+			if state:
+				tmp = dst
 			else:
-				tmp = tmp.rstrip('\0')
+				if rem == 0:
+					s.send(udp_pack("Send again".encode(), 10, ack=0))
+					okeyindex += 1
+				keyindex += 1
+				continue
+			tmp = decrypt(tmp, length)
 			content += tmp
 			if rem == 0:
 				break
@@ -126,11 +117,9 @@ def run(s):
 		for piece in pieces(content):
 			length = len(piece)
 			rem -= length
-			if enc:
-				piece = encrypt(piece)
+			piece = encrypt(piece)
 			piece = piece.encode()
-			if par:
-				piece = parity_add(piece)
+			piece = parity_add(piece)
 			omsg = udp_pack(piece, length, rem=rem)
 			try:
 				s.send(omsg)
@@ -178,20 +167,12 @@ def socket_init(host, port, type):
 	return s
 
 def tcp_negotiate(s):
-	buf = "HELLO"
-	if enc:
-		buf += " ENC"
-	if mul:
-		buf += " MUL"
-	if par:
-		buf += " PAR"
-	buf += "\r\n"
-	if enc:
-		for i in range(0, KEYC):
-			okeyv.append(key_generate())
-			buf += okeyv[i]
-			buf += "\r\n"
-		buf += ".\r\n"
+	buf = "HELLO ENC MUL PAR\r\n"
+	for i in range(0, KEYC):
+		okeyv.append(key_generate())
+		buf += okeyv[i]
+		buf += "\r\n"
+	buf += ".\r\n"
 	try:
 		s.send(buf.encode())
 	except:
@@ -202,11 +183,9 @@ def tcp_negotiate(s):
 
 def udp_hello(s):
 	buf = "Hello from " + id
-	if enc:
-		buf = encrypt(buf)
+	buf = encrypt(buf)
 	buf = buf.encode()
-	if par:
-		buf = parity_add(buf)
+	buf = parity_add(buf)
 	data = udp_pack(buf, len(buf))
 	try:
 		s.send(data)
@@ -227,23 +206,12 @@ def usage():
 	sys.exit(1)
 
 def main():
-	global argv0, enc, mul, par
+	global argv0
 
 	argv0 = sys.argv[0]
 	try:
-		options, argv = getopt.getopt(sys.argv[1:], "emp")
-	except getopt.GetoptError:
-		usage()
-	for option in options:
-		if option[0] == '-e':
-			enc = 1
-		elif option[0] == '-m':
-			mul = 1
-		elif option[0] == '-p':
-			par = 1
-	try:
-		host = argv[0]
-		port = argv[1]
+		host = sys.argv[1]
+		port = sys.argv[2]
 	except:
 		usage()
 	s = initconn(host, port)
