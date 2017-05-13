@@ -111,29 +111,6 @@ def run(s):
 			content += tmp
 			if rem == 0:
 				break
-		try:
-			data = s.recv(RCVLEN)
-			cid, ack, eom, rem, length, content = udp_unpack(data)
-		except:
-			print("recv")
-			sys.exit(1)
-		if eom == 1:
-			print(content.decode())
-			return
-		content = content.decode()
-		if enc:
-			if debug:
-				print("run: content before decryption: {}"
-				    .format(" ".join(hex(ord(n)) for n in content)))
-				for c in content:
-					if ord(c) == 0:
-						print("run: contains zero")
-			content = decrypt(content, length)
-			if debug:
-				print("run: decrypted content: {}"
-				    .format(content))
-		else:
-			content = content.rstrip('\0\r\n')
 		content = " ".join(content.split()[::-1])
 		rem = len(content)
 		for piece in pieces(content):
