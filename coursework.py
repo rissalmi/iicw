@@ -108,8 +108,8 @@ def run(s):
 					okeyindex += 1
 				keyindex += 1
 				continue
-			tmp = decrypt(tmp, length)
-			content += tmp
+			#tmp = decrypt(tmp, length)
+			content += decrypt(tmp, length)
 			if rem == 0:
 				break
 		content = " ".join(content.split()[::-1])
@@ -117,9 +117,10 @@ def run(s):
 		for piece in pieces(content):
 			length = len(piece)
 			rem -= length
-			piece = encrypt(piece)
-			piece = piece.encode()
-			piece = parity_add(piece)
+			#piece = encrypt(piece)
+			#piece = piece.encode()
+			#piece = parity_add(piece)
+			piece = parity_add(encrypt(piece).encode())
 			omsg = udp_pack(piece, length, rem=rem)
 			try:
 				s.send(omsg)
@@ -182,10 +183,11 @@ def tcp_negotiate(s):
 	return id, port
 
 def udp_hello(s):
-	buf = "Hello from " + id
-	buf = encrypt(buf)
-	buf = buf.encode()
-	buf = parity_add(buf)
+	#buf = "Hello from " + id
+	#buf = encrypt(buf)
+	#buf = buf.encode()
+	#buf = parity_add(buf)
+	buf = parity_add(encrypt("Hello from " + id).encode())
 	data = udp_pack(buf, len(buf))
 	try:
 		s.send(data)
@@ -194,8 +196,7 @@ def udp_hello(s):
 		sys.exit(1)
 
 def udp_pack(buf, length, ack=1, rem=0):
-	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length,
-	    buf)
+	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length, buf)
 	return data
 
 def udp_unpack(data):
