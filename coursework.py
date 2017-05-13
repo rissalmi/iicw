@@ -186,8 +186,7 @@ def udp_hello(s):
 		sys.exit(1)
 
 def udp_pack(buf, length, ack=1, rem=0):
-	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length, buf)
-	return data
+	return struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length, buf)
 
 def udp_unpack(data):
 	return struct.unpack(STRUCTFMT, data)
