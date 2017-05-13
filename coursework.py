@@ -10,8 +10,8 @@ KEYLEN = 64
 RCVLEN = 8192
 STRUCTFMT = '!8s??HH64s'
 
-debug = 0
 enc = 0
+mul = 0
 par = 0
 id = ""
 okeyv = []
@@ -20,52 +20,21 @@ okeyindex = 0
 keyindex = 0
 
 def encrypt(src):
-	global debug, okeyindex, okeyv
+	global okeyindex
 
 	dst = ""
-	if debug:
-		print("encrypt: using okeyv[{}] ({})".format(okeyindex,
-		    okeyv[okeyindex]))
 	for a, b in zip(src, okeyv[okeyindex]):
 		dst += chr(ord(a) ^ ord(b))
-		if debug >= 2:
-			print("encrypt: {} XOR {} -> {}".format(hex(ord(a)),
-			    hex(ord(b)), hex(ord(dst[-1]))))
 	okeyindex += 1
-	if debug:
-		print("encrypt: encrypted string: {}"
-		    .format(" ".join(hex(ord(n)) for n in dst)))
 	return dst
 
 def decrypt(src, length):
-	global debug, keyindex, keyv
+	global keyindex
 
 	dst = ""
-	if debug:
-		print("decrypt: using keyv[{}] ({})".format(keyindex,
-		    keyv[keyindex]))
 	for i in range(0, length):
 		dst += chr(ord(src[i]) ^ ord(keyv[keyindex][i]))
 	keyindex += 1
-	if debug:
-		print("decrypt: decrypted string: {}".format(dst))
-		print("decrypt: decrypted string: {}".format(" "
-		    .join(hex(ord(n)) for n in dst)))
-	return dst
-
-# TODO: This function is only for testing the ENC feature.
-# Decrypts the encrypt()'ed string with the same key as encrypt() used, which
-# obviously results in the string that was given to encrypt() to encrypt.
-def decrypto(src):
-	global debug, okeyindex, okeyv
-
-	dst = ""
-	for a, b in zip(src, okeyv[okeyindex - 1]):
-		dst += chr(ord(a) ^ ord(b))
-	if debug:
-		print("decrypto: decrypted string: {}".format(dst))
-		print("decrypto: decrypted string: {}".format(" "
-		    .join(hex(ord(n)) for n in dst)))
 	return dst
 
 def initconn(host, port):
@@ -79,8 +48,6 @@ def initconn(host, port):
 	return s
 
 def key_generate():
-	global KEYLEN
-
 	dst = ""
 	for i in range(0, KEYLEN):
 		n = random.choice([random.randint(0, 9), random.randint(17, 22),
@@ -89,12 +56,11 @@ def key_generate():
 	return str(dst)
 
 def parity_add(src):
-	dst = ""
+	dst = b''
 	for c in src:
-		a = ord(c)
-		a <<= 1
-		a += parity_get(a)
-		dst += chr(a)
+		c <<= 1
+		c += parity_get(c)
+		dst += bytes([c])
 	return dst
 
 def parity_get(n):
@@ -116,69 +82,66 @@ def parity_ok(src):
 			return False, dst
 	return True, dst
 
-def run(s):
-	global debug
+def pieces(msg, length=64):
+	return [ msg[i:i+length] for i in range(0, len(msg), length) ]
 
+def repr_hex(p):
+	return " ".join(hex(ord(n)) for n in p)
+
+def run(s):
+	global keyindex, okeyindex
 	while True:
-		try:
-			data = s.recv(RCVLEN)
-			cid, ack, eom, rem, length, content = udp_unpack(data)
-		except:
-			print("recv")
-			sys.exit(1)
-		if eom == 1:
-			print(content.decode())
-			return
-		if not par:
-			content = content.decode()
-		if par:
-			state, dst = parity_ok(content)
-			if state:
-				content = dst
+		content = ""
+		while True:
+			try:
+				data = s.recv(RCVLEN)
+				cid, ack, eom, rem, length, tmp = udp_unpack(data)
+			except OSError as e:
+				print("recv: {}".format(str(e)))
+				sys.exit(1)
+			if not par:
+				tmp = tmp.decode()
+			if eom == 1:
+				print(tmp)
+				return
+			if par:
+				state, dst = parity_ok(tmp)
+				if state:
+					tmp = dst
+				else:
+					if rem == 0:
+						s.send(udp_pack("Send again".encode(), 10, ack=0))
+						okeyindex += 1
+					keyindex += 1
+					continue
+			if enc:
+				tmp = decrypt(tmp, length)
 			else:
-				print("parity not ok")
-				s.send(udp_pack("Send again", 10, 0))
-		if enc:
-			if debug:
-				print("run: content before decryption: {}"
-				    .format(" ".join(hex(ord(n)) for n in content)))
-				for c in content:
-					if ord(c) == 0:
-						print("run: contains zero")
-			content = decrypt(content, length)
-			if debug:
-				print("run: decrypted content: {}"
-				    .format(content))
-		else:
-			content = content.rstrip('\0\r\n')
+				tmp = tmp.rstrip('\0')
+			content += tmp
+			if rem == 0:
+				break
 		content = " ".join(content.split()[::-1])
-		if debug:
-			print("run: reversed content: {}".format(content))
-		if enc:
-			content = encrypt(content)
-			#if debug:
-			#	print("run: decrypto returned: {}"
-			#	    .format(decrypto(content)))
-		if par:
-			content = parity_add(content)
-			print(content, len(content))
-		omsg = udp_pack(content, length, 1)
-		try:
-			s.send(omsg)
-		except:
-			print("send")
-			sys.exit(1)
+		rem = len(content)
+		for piece in pieces(content):
+			length = len(piece)
+			rem -= length
+			if enc:
+				piece = encrypt(piece)
+			piece = piece.encode()
+			if par:
+				piece = parity_add(piece)
+			omsg = udp_pack(piece, length, rem=rem)
+			try:
+				s.send(omsg)
+			except:
+				sys.exit(1)
 
 def server_parse(s):
-	global debug
-
 	try:
 		buf = s.recv(RCVLEN).decode()
 	except:
-		print("recv")
 		sys.exit(1)
-	if debug:
-		print("server_parse: buf:\n{}".format(buf))
 	buf = buf.strip(' \r\n\0').split('\r\n')
 	line = buf[0].split(' ')
 	if (line[0] != "HELLO"):
@@ -187,15 +150,9 @@ def server_parse(s):
 	id = line[1]
 	port = line[2]
 	for line in buf[1:]:
-		if debug:
-			print("server_parse: len(line) = {}, line: {}"
-			    .format(len(line), line))
 		if line[0] == '.':
 			break
 		keyv.append(line)
-	if debug:
-		for key in keyv:
-			print("server_parse: key: {}".format(key))
 	return id, port
 
 def socket_init(host, port, type):
@@ -222,6 +179,8 @@ def tcp_negotiate(s):
 	buf = "HELLO"
 	if enc:
 		buf += " ENC"
+	if mul:
+		buf += " MUL"
 	if par:
 		buf += " PAR"
 	buf += "\r\n"
@@ -231,8 +190,6 @@ def tcp_negotiate(s):
 			buf += okeyv[i]
 			buf += "\r\n"
 		buf += ".\r\n"
-	if debug:
-		print("tcp_negotiate: buf:\n{}".format(buf))
 	try:
 		s.send(buf.encode())
 	except:
@@ -245,49 +202,43 @@ def udp_hello(s):
 	buf = "Hello from " + id
 	if enc:
 		buf = encrypt(buf)
+	buf = buf.encode()
 	if par:
 		buf = parity_add(buf)
-	data = udp_pack(buf, len(buf), 1)
+	data = udp_pack(buf, len(buf))
 	try:
 		s.send(data)
 	except:
 		print("send")
 		sys.exit(1)
 
-def udp_pack(buf, length, ack):
-	global STRUCTFMT
-	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, 0, length,
-	    buf.encode())
+def udp_pack(buf, length, ack=1, rem=0):
+	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length,
+	    buf)
 	return data
 
 def udp_unpack(data):
-	global STRUCTFMT
-
 	return struct.unpack(STRUCTFMT, data)
 
 def usage():
-	global argv0
-
-	print("usage: {} [-evp] host port".format(argv0))
+	print("usage: {} [-emp] host port".format(argv0))
 	sys.exit(1)
 
 def main():
-	global argv0, debug, enc, par
+	global argv0, enc, mul, par
 
 	argv0 = sys.argv[0]
 	try:
-		options, argv = getopt.getopt(sys.argv[1:], "evp")
+		options, argv = getopt.getopt(sys.argv[1:], "emp")
 	except getopt.GetoptError:
 		usage()
 	for option in options:
-		if debug:
-			print("main: option: {}".format(option))
 		if option[0] == '-e':
 			enc = 1
-		if option[0] == '-p':
+		elif option[0] == '-m':
+			mul = 1
+		elif option[0] == '-p':
 			par = 1
-		elif option[0] == '-v':
-			debug += 1
 	try:
 		host = argv[0]
 		port = argv[1]
