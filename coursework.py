@@ -134,11 +134,11 @@ def run(s):
 				print("recv: {}".format(str(e)))
 				sys.exit(1)
 			print("run: type(content) after recv: {}".format(type(content)))
+			if eom == 1:
+				print(tmp.decode())
+				return
 			if not par:
 				tmp = tmp.decode()
-			if eom == 1:
-				print(tmp)
-				return
 			if par:
 				print("run: type(tmp) before parity_ok: {}".format(type(tmp)))
 				state, dst = parity_ok(tmp)
@@ -150,9 +150,10 @@ def run(s):
 					print("type(tmp) after assignation: {}".format(type(tmp)))
 				else:
 					print("parity not ok")
-					s.send(udp_pack("Send again".encode(), 10, ack=0))
+					if rem == 0:
+						s.send(udp_pack("Send again".encode(), 10, ack=0))
+						okeyindex += 1
 					keyindex += 1
-					okeyindex += 1
 					continue
 			if debug:
 				print("run: tmp after parity_ok: {}".format(" ".join(hex(ord(n)) for n in tmp)))
