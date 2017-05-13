@@ -79,13 +79,11 @@ def parity_ok(src):
 	return True, dst
 
 def pieces(msg, length=64):
-	return [ msg[i:i+length] for i in range(0, len(msg), length) ]
-
-def repr_hex(p):
-	return " ".join(hex(ord(n)) for n in p)
+	return [msg[i:i+length] for i in range(0, len(msg), length)]
 
 def run(s):
 	global keyindex, okeyindex
+
 	while True:
 		content = ""
 		while True:
@@ -98,17 +96,17 @@ def run(s):
 			if eom == 1:
 				print(tmp.decode())
 				return
-			state, dst = parity_ok(tmp)
-			if state:
+			ok, dst = parity_ok(tmp)
+			if ok:
 				tmp = dst
 			else:
 				if rem == 0:
-					s.send(udp_pack("Send again".encode(), 10, ack=0))
+					s.send(udp_pack("Send again".encode(),
+					    10, ack=0))
 					okeyindex += 1
 				keyindex += 1
 				continue
-			tmp = decrypt(tmp, length)
-			content += tmp
+			content += decrypt(tmp, length)
 			if rem == 0:
 				break
 		content = " ".join(content.split()[::-1])
@@ -116,19 +114,19 @@ def run(s):
 		for piece in pieces(content):
 			length = len(piece)
 			rem -= length
-			piece = encrypt(piece)
-			piece = piece.encode()
-			piece = parity_add(piece)
+			piece = parity_add(encrypt(piece).encode())
 			omsg = udp_pack(piece, length, rem=rem)
 			try:
 				s.send(omsg)
-			except:
+			except OSError as e:
+				print("send: {}".format(str(e)))
 				sys.exit(1)
 
 def server_parse(s):
 	try:
 		buf = s.recv(RCVLEN).decode()
-	except:
+	except OSError as e:
+		print("recv: {}".format(str(e)))
 		sys.exit(1)
 	buf = buf.strip(' \r\n\0').split('\r\n')
 	line = buf[0].split(' ')
@@ -147,13 +145,13 @@ def socket_init(host, port, type):
 	try:
 		res0 = socket.getaddrinfo(host, None, type=type)
 	except socket.gaierror as e:
-		print(e)
+		print("getaddrinfo: {}".format(str(e)))
 		sys.exit(1)
 	for res in res0:
 		try:
 			s = socket.socket(res[0], res[1], res[2])
 		except OSError as e:
-			print(e)
+			print("socket: {}".format(str(e)))
 			continue
 		try:
 			s.connect((res[4][0], int(port)))
@@ -172,27 +170,23 @@ def tcp_negotiate(s):
 	buf += ".\r\n"
 	try:
 		s.send(buf.encode())
-	except:
-		print("send")
+	except OSError as e:
+		print("send: {}".format(str(e)))
 		sys.exit(1)
 	id, port = server_parse(s)
 	return id, port
 
 def udp_hello(s):
-	buf = "Hello from " + id
-	buf = encrypt(buf)
-	buf = buf.encode()
-	buf = parity_add(buf)
+	buf = parity_add(encrypt("Hello from " + id).encode())
 	data = udp_pack(buf, len(buf))
 	try:
 		s.send(data)
-	except:
-		print("send")
+	except OSError as e:
+		print("send: {}".format(str(e)))
 		sys.exit(1)
 
 def udp_pack(buf, length, ack=1, rem=0):
-	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length,
-	    buf)
+	data = struct.pack(STRUCTFMT, id.encode(), ack, 0, rem, length, buf)
 	return data
 
 def udp_unpack(data):
@@ -207,12 +201,8 @@ def main():
 
 	argv0 = sys.argv[0]
 	try:
-		argv = sys.argv[1:]
-	except:
-		usage()
-	try:
-		host = argv[0]
-		port = argv[1]
+		host = sys.argv[1]
+		port = sys.argv[2]
 	except:
 		usage()
 	s = initconn(host, port)
